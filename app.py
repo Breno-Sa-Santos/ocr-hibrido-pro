@@ -1,6 +1,6 @@
 """
 Sistema de OCR Híbrido com Streamlit
-Versão: 5.0 - Streamlit Cloud Ready
+Versão: 5.1 - Streamlit Cloud Ready (Corrigido)
 
 Funcionalidades:
 - Upload de PDFs
@@ -22,6 +22,11 @@ from pathlib import Path
 from collections import defaultdict, deque
 import tempfile
 
+# Imports principais (sem instalação automática)
+from pdf2image import convert_from_bytes
+from PIL import Image, ImageStat
+import numpy as np
+
 # Configuração da página
 st.set_page_config(
     page_title="OCR Híbrido Pro",
@@ -29,35 +34,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ==================== INSTALAÇÃO DE DEPENDÊNCIAS ====================
-@st.cache_resource
-def instalar_dependencias():
-    """Instala dependências pesadas apenas uma vez"""
-    import subprocess
-    import sys
-    
-    packages = [
-        "pdf2image",
-        "PyPDF2",
-        "Pillow",
-        "numpy",
-        "scikit-learn",
-        "tqdm"
-    ]
-    
-    for package in packages:
-        try:
-            __import__(package.replace("-", "_"))
-        except ImportError:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q"])
-
-with st.spinner("🔧 Verificando dependências..."):
-    instalar_dependencias()
-
-from pdf2image import convert_from_bytes
-from PIL import Image, ImageStat
-import numpy as np
 
 # ==================== CONFIGURAÇÕES ====================
 class Config:
@@ -421,15 +397,32 @@ def processar_pdf(pdf_bytes, pdf_name, api_keys):
 # ==================== INTERFACE STREAMLIT ====================
 def main():
     st.title("📄 Sistema de OCR Híbrido Pro")
-    st.markdown("**Versão 5.0** - Processamento inteligente com fallback em cascata")
+    st.markdown("**Versão 5.1** - Processamento inteligente com fallback em cascata")
     
     # Sidebar - Configurações
     with st.sidebar:
         st.header("⚙️ Configurações")
         
         st.subheader("🔑 API Keys")
-        gemini_key = st.text_input("Gemini API Key", type="password", help="Obtenha em ai.google.dev")
-        groq_key = st.text_input("Groq API Key", type="password", help="Obtenha em console.groq.com")
+        
+        # Tentar pegar das secrets primeiro
+        try:
+            gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+            groq_key = st.secrets.get("GROQ_API_KEY", "")
+            
+            if gemini_key and groq_key:
+                st.success("✅ API Keys carregadas dos Secrets")
+                # Mostrar inputs desabilitados com placeholder
+                st.text_input("Gemini API Key", value="***************", disabled=True)
+                st.text_input("Groq API Key", value="***************", disabled=True)
+            else:
+                # Pedir manualmente
+                gemini_key = st.text_input("Gemini API Key", type="password", help="Obtenha em ai.google.dev")
+                groq_key = st.text_input("Groq API Key", type="password", help="Obtenha em console.groq.com")
+        except:
+            # Se não tiver secrets, pedir manualmente
+            gemini_key = st.text_input("Gemini API Key", type="password", help="Obtenha em ai.google.dev")
+            groq_key = st.text_input("Groq API Key", type="password", help="Obtenha em console.groq.com")
         
         st.divider()
         
@@ -454,6 +447,7 @@ def main():
     # Área principal
     if not gemini_key or not groq_key:
         st.warning("⚠️ Configure as API Keys na barra lateral")
+        st.info("💡 **Dica:** As keys devem estar configuradas nos Secrets do Streamlit Cloud")
         st.stop()
     
     api_keys = {'gemini': gemini_key, 'groq': groq_key}
